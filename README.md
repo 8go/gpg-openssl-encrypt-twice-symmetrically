@@ -23,6 +23,41 @@ Two pairs of scripts are provided:
         is in a single file. This is done for simplicity. The `decrypt`
         script is just a dummy calling the `encrypt` script with an argument.
 
+# Usage
+
+```
+gpg-encrypt-twice-symmetrically.sh [--help] [--encrypt|--decrypt] files
+openssl-encrypt-twice-symmetrically.sh [--help] [--encrypt|--decrypt] files
+
+gpg-decrypt-twice-symmetrically.sh [--help] files # dummy script, calls gpg-encrypt-twice-symmetrically.sh
+openssl-decrypt-twice-symmetrically.sh [--help] files # dummy script, calls openssl-encrypt-twice-symmetrically.sh
+```
+
+Examples:
+```
+gpg-encrypt-twice-symmetrically.sh --help # print help
+gpg-encrypt-twice-symmetrically.sh --encrypt myhealthcarerecord.pdf # encrypts one file
+# produces file myhealthcarerecord.pdf.enc as output and some additional outputs (meta-data, QR codes, etc.)
+gpg-encrypt-twice-symmetrically.sh myhealthcarerecord.pdf # encrypts one file, --encrypt is used by default
+# produces file myhealthcarerecord.pdf.enc as output and some additional outputs (meta-data, QR codes, etc.)
+gpg-encrypt-twice-symmetrically.sh --decrypt myhealthcarerecord.pdf.enc # decrypts one file
+# produces file myhealthcarerecord.pdf as output
+gpg-decrypt-twice-symmetrically.sh myhealthcarerecord.pdf.enc # decrypts one file, same as previous command
+gpg-encrypt-twice-symmetrically.sh myhealthcarerecord.pdf lawyerbill.doc # encrypts two files
+gpg-encrypt-twice-symmetrically.sh # encrypts input from stdio (e.g. keyboard or pipe)
+```
+
+If you replace `gpg` with `openssl` you get the examples for the openssl variant:
+```
+openssl-encrypt-twice-symmetrically.sh --help # print help
+openssl-encrypt-twice-symmetrically.sh myhealthcarerecord.pdf # encrypts one file
+openssl-encrypt-twice-symmetrically.sh --decrypt myhealthcarerecord.pdf.enc # decrypts one file
+...
+```
+
+You **cannot** mix-and-match. If you encrypt with the `gpg` script, you must decrypt with the `gpg` script. 
+If you encrypt with the `openssl` script, you must decrypt with the `openssl` script.
+
 # Differences between the `GPG` and `OpenSLL` variants
 
 -   different ciphers: Chacha20 vs TwoFish
