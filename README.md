@@ -52,6 +52,9 @@ Two pairs of scripts are provided:
     -   using easy password will lead to easy-to-break results
 -   It is recommended that you also keep a copy of the scripts that you used
     together with your encrypted files.
+-   Open source. GPL3 license. Use as you like. No warranty. No claims.
+-   Not liable. Not responsible for losses or damages.
+
 
 * * *
 * * *
