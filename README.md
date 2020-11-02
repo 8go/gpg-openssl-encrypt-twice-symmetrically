@@ -64,9 +64,11 @@ If you encrypt with the `openssl` script, you must decrypt with the `openssl` sc
     -   gpg variant uses first AES256 and then TwoFish
     -   openssl variant uses first Chacha20 and then AES256
 -   different amount of iterations of password hashing
-    -   higher in openssl variant --> slows attacker down
+    -   the maximum number of hash iterations is low in GPG
+    -   the maximum number of hash iterations is nearly unlimited in OpenSSL
+    -   with openssl variant it is easier to slow attacker down, one can pre-hash the password even for an hour if desired
 -   number of iterations of password hashing recall
-    -   gpg variant stores it in encrypted file, so not needed on decryption
+    -   gpg variant stores it in the encrypted file, so not needed on decryption
     -   with openssl variant you need to know/remember this number in order to decrypt!
         This number is hardcoded in the script.
 -   resulting file sizes
@@ -81,15 +83,24 @@ If you encrypt with the `openssl` script, you must decrypt with the `openssl` sc
 -   both use AES256 as one of the ciphers they use
 -   both use a digest
 
+# Miscellaneous Observations
+
+-   encrypt and decrypt operations consume about the same time and CPU, memory resources
+    - if encryption took N millsec, then decryption will also roughly take N millisec
+-   the sizes of the encrypted output files is roughly the same in both variants 
+    - no variant is more space efficient than the other
+
 # Warning
 
--   Remember: both variants are ONLY secure if the two passwords are difficult,
-    -   using easy password will lead to easy-to-break results
+-   Remember: both variants are ONLY secure if the two passphrases are difficult,
+    -   using easy passphrases will lead to easy-to-break results
+    -   using the same password for both ciphers makes *no* sense, use simple encryption in that case, it is meaningless to encrypt twice if you use the same passphrase
 -   It is recommended that you also keep a copy of the scripts that you used
     together with your encrypted files.
 -   Open source. GPL3 license. Use as you like. No warranty. No claims.
 -   Not liable. Not responsible for losses or damages.
 
+PRs welcome. If you find it useful, give it a :star: in Github.
 
 * * *
 * * *
@@ -164,7 +175,10 @@ secure, and viable for a long time (10 years).
     -   does double-symmetric-encryption out-of-the-box
     -   No lib imported, no dependency, some 100 lines of C code.
     -   But not widely used.
--   scrypt
+-   scrypt: <https://en.wikipedia.org/wiki/Scrypt>, <https://www.tarsnap.com/scrypt.html>, <https://www.tarsnap.com/scrypt.html>
+    -   both: library and ready-to-use tool, hashing+encryption
+-   bcrypt: <https://en.wikipedia.org/wiki/Bcrypt>, <https://pypi.org/project/bcrypt/>, <https://pkg.go.dev/golang.org/x/crypto/bcrypt>
+    -   salted password hashing, library
 -   libsecp256k1 (lib only)
 -   libsodium, NaCl, <https://nacl.cr.yp.to> (lib only)
 
@@ -172,6 +186,7 @@ secure, and viable for a long time (10 years).
 
 -   <https://news.ycombinator.com/item?id=13382734> : good parameters to use with gpg2! must read!
 -   <https://stackoverflow.com/questions/28247821/openssl-vs-gpg-for-encrypting-off-site-backups> : openssl vs. gpg
+-   <https://security.stackexchange.com/questions/211/how-to-securely-hash-passwords/>: password hashing
 
 ## AES256
 
@@ -277,6 +292,32 @@ secure, and viable for a long time (10 years).
 -   libsodium / NaCl offers BOTH: AES and ChaCha20 (as well as authentication, i.e. the Poly1305 part), <https://nacl.cr.yp.to>
 -   Rust implementation `rage`
 
+
+## Scrypt
+
+- `scrypt` is mostly famous for its hashing algorithm that requires a lot of RAM
+- this makes it resistant against attacks from GPUs or rented cheap CPUs in the cloud 
+- hashing has higher hardware requirements and optimized hardware is *not* so readily available
+- the `scrypt` software library comes not only with a hash function but also with an encrypt and decrypt function.
+    - scrypt encrypt uses: 256-bit AES
+    - scrypt library available in many languages from C, JS, Go, to Python bindings
+    - scrypt tool available, only for encryption, not for hashing (but trivial to create)
+ - links:
+    - https://www.tarsnap.com/scrypt.html
+    - https://github.com/Tarsnap/scrypt
+    - https://github.com/holgern/py-scrypt (Python), https://godoc.org/golang.org/x/crypto/scrypt (Go)
+    - https://crypto.stackexchange.com/questions/35423/appropriate-scrypt-parameters-when-generating-an-scrypt-hash
+ - scrypt hash can be used as a key derivation function (KDF), it is used as such in its own scrypt encrypt() function
+    - scrypt hash can be used as a key derivation function (KDF) for other encryption algorithms, e.g. for gpg. 
+    Pre-hash with scrypt first, then use the scrypt generated derived key for gpg or any other algoritm. 
+    In other words, it can strengthen any password.
+ - source code is relatively easy to understand, relatively small
+ - how to select good parameters? Read: https://crypto.stackexchange.com/questions/35423/appropriate-scrypt-parameters-when-generating-an-scrypt-hash
+    - r=16 ?  maximize N to adapt to your needs 
+ - it is crucial to record and remember the salt as well as parameters r, N, and p if one uses library
+ - if one uses the pre-built encryption tool, these values are stored in the encrypted file, so no need to remember/store anything but the cipertext.
+ - no patents
+
 ## Keybase.io, VeraCrypt
 
 -   VeraCrypt: only does hard-disk encryption (like LUKS), not file encryption
@@ -286,6 +327,10 @@ secure, and viable for a long time (10 years).
 
 -   using a random number for iterations could be even more secure but what if you lose the meta data (the .inf file)?
 -   using QR code for obfuscation
--   If one ever wants to program encryption stuff, these are 2 good high-level packages:
+-   If one ever wants to program encryption stuff, these are good high-level packages:
     -   <https://cryptography.io/en/latest/fernet/>
     -   <https://pynacl.readthedocs.io/en/stable/secret/>
+    -   <https://www.tarsnap.com/scrypt.html> `scrypt` implementation for various languages
+-   To delay the brute-force attacker, if `gpg` is used, it could be considered to pre-hash the password before calling `gpg`. This makes the low maximum iteration count in PGP irrelevant, and if `scrypt` is used it adds an additional challenge to the attacker as he now also needs to deal with a second hashing algorithm and with high RAM requirements for his attack hardware.
+
+
