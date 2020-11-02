@@ -5,8 +5,9 @@
 
 # If this software does not suit you, here are some alternative pieces of
 # software that are very similar:
-# age <https://github.com/FiloSottile/age
-# rage <https://github.com/str4d/rage
+# scrypt https://www.tarsnap.com/scrypt.html
+# age https://github.com/FiloSottile/age
+# rage https://github.com/str4d/rage
 # https://github.com/SixArm/gpg-encrypt
 # https://github.com/SixArm/gpg-decrypt
 # https://github.com/SixArm/openssl-encrypt
@@ -43,10 +44,12 @@ TMP="tmp"                 # to indicate temporary file
 MAX_FILESIZE_FOR_QR=4096  # if the output file is larger than that no QR code will be produced
 UMASK_ORIGINAL=$(umask)   # the original umask value, for later restoring
 UMASK_READONLY="0377"     # created files (will be r--)
-# SHA_HASH_ITERATIONS: --s2k-count allowed values/range: 1024-65011712
+# SHA_HASH_ITERATIONS: --s2k-count allowed values/range: 1024-65011712, 65011712 is a firm maximum
 # SHA_HASH_ITERATIONS: --s2k-count default is 37748736, set by gpg-agent
 # SHA_HASH_ITERATIONS: --s2k-count 65011712 roughly 0.2 sec on basic average 2020 CPU, tested
-SHA_HASH_ITERATIONS_RECOMMENDED=65011712             # 65M
+# We use a number close to the Max, but not exactly Max,
+# just in case there is or will be a rainbow table for Max iterations
+SHA_HASH_ITERATIONS_RECOMMENDED=65011601             # 65M
 SHA_HASH_ITERATIONS=$SHA_HASH_ITERATIONS_RECOMMENDED # 65M
 # SHA_HASH_ITERATIONS=65011712                       # 65M # for testing only
 # HASHING_TIME_IN_SEC=$(expr $SHA_HASH_ITERATIONS / 325000000) # estimate for moderate CPU in 2020, negligable so we don't use/print it
@@ -62,7 +65,7 @@ PASSPHRASE_FILE_TWOFISH_OPTION="--batch --passphrase-file $PASSPHRASE_FILE_TWOFI
 
 # usage: outputs to stdout the --help usage message.
 usage() {
-  echo "${0##*/}: Version: v2020-09-30"
+  echo "${0##*/}: Version: v2020-11-02"
   echo "${0##*/}: Usage: ${0##*/} [--help] [--encrypt|--decrypt] files"
   echo "${0##*/}: e.g. ${0##*/} file1.txt file2.jpg # encrypt 2 files"
   echo "${0##*/}: e.g. ${0##*/} # read from stdin, encrypt text from stdin input"
@@ -81,11 +84,11 @@ usage() {
   echo "${0##*/}: If no file is provided as command line argument, script will read "
   echo "${0##*/}: plain-text from std input."
   echo "${0##*/}: "
-  echo "${0##*/}: If a file named \"passphrase-file-aes\" exists in the local"
+  echo "${0##*/}: If a file named \"$PASSPHRASE_FILE_AES_FILE\" exists in the local"
   echo "${0##*/}: directory, then it will be used as passphrase source instead of stdin"
   echo "${0##*/}: for the AES-round (first round) of encryption."
   echo "${0##*/}: "
-  echo "${0##*/}: If a file named \"passphrase-file-twofish\" exists in the local"
+  echo "${0##*/}: If a file named \"$PASSPHRASE_FILE_TWOFISH_FILE\" exists in the local"
   echo "${0##*/}: directory, then it will be used as passphrase source instead of stdin"
   echo "${0##*/}: for the TwoFish-round (second round) of encryption."
   echo "${0##*/}: "
@@ -97,9 +100,10 @@ usage() {
   echo "${0##*/}: Decrypt does the opposite. It recovers the plaintext from the ciphertext."
   echo "${0##*/}: TLDR: The whole decryption script in a nutshell does the 3 lines of code from above in the reverse order but with --decrypt instead of --symmetric."
   echo ""
-  echo ""
-  echo "Typical encryption process looks similar to this: "
-  cat << END
+  if [ "$DEBUG" == "true" ]; then
+    echo ""
+    echo "Typical encryption process looks similar to this: "
+    cat << END
 $ ./${0##*/}
 ${0##*/}: Verified that version 2 of GPG is installed. Passed check.
 ${0##*/}: Install latest version of "gpg" (version 2), "sha512sum", "shred" and "qrencode"!
@@ -126,7 +130,7 @@ ${0##*/}: Starting command: gpg \
       --pinentry-mode loopback \
       --no-symkey-cache \
       --output "ciphertext.tmp.enc" \
-      "-" # no --armor
+      "-"
 secret text
 ${0##*/}: Success: gpg encrypted file "-" successfully.
 ${0##*/}: Starting command: gpg \
@@ -157,6 +161,7 @@ ${0##*/}: QR codes are in files "ciphertext.png" and "ciphertext.svg"
 ${0##*/}: Metadata is in file "ciphertext.inf".
 ${0##*/}: SUCCESS! Look at ciphertext output in file "ciphertext.enc".
 END
+  fi
 } # usage()
 
 # takes 1 optional argument, the return value, the exit value
@@ -185,11 +190,13 @@ read-passphrase-files-if-availble() {
   if [ -f "$PASSPHRASE_FILE_AES_FILE" ]; then
     echo "${0##*/}: Info: Found file \"$PASSPHRASE_FILE_AES_FILE\". It will be used as source for the AES passphrase. You will not be asked for a passphrase for AES $1."
   else
+    echo "${0##*/}: Info: File \"$PASSPHRASE_FILE_AES_FILE\" not found. It cannot be used as source for the AES passphrase. You will be asked for a passphrase for AES $1."
     PASSPHRASE_FILE_AES_OPTION="" # don't use this option
   fi
   if [ -f "$PASSPHRASE_FILE_TWOFISH_FILE" ]; then
     echo "${0##*/}: Info: Found file \"$PASSPHRASE_FILE_TWOFISH_FILE\". It will be used as source for the TwoFish passphrase. You will not be asked for a passphrase for TwoFish $1."
   else
+    echo "${0##*/}: Info: File \"$PASSPHRASE_FILE_TWOFISH_FILE\" not found. It cannot be used as source for the TwoFish passphrase. You will be asked for a passphrase for TwoFish $1."
     PASSPHRASE_FILE_TWOFISH_OPTION="" # don't use this option
   fi
 }
@@ -524,12 +531,12 @@ esac
 case "$1" in
 --help | --hel | --he | --h | -help | -hel | -he | -h)
   usage
-  cleanup_exit 0
-  ;; # success
+  exit 0 # no cleanup needed
+  ;;     # success
 --version | --versio | --versi | --vers | --ver | --ve | --v | -version | -versio | -versi | -vers | -ver | -ve | -v)
   usage
-  cleanup_exit 0
-  ;; # success
+  exit 0 # no cleanup needed
+  ;;     # success
 esac
 
 # give some guidance, summary
@@ -583,4 +590,14 @@ for i in "$@"; do
   fi
 done
 
+# This code is just useful if script is kicked off via GUI such as file manager
+# Not needed when used in terminal.
+#if [ "${FILESLASHSLASHUSED}" -eq "1" ]; then
+#  echo "${0##*/}: Done. Close window please by clicking X in top right window corner."
+#else
+#  echo -n "${0##*/}: Hit any key to continue ... "
+#fi
+#read YESNO
+
 cleanup_exit 0 # success
+# EOF
