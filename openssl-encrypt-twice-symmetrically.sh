@@ -5,8 +5,9 @@
 
 # If this software does not suit you, here are some alternative pieces of
 # software that are very similar:
-# age <https://github.com/FiloSottile/age
-# rage <https://github.com/str4d/rage
+# scrypt https://www.tarsnap.com/scrypt.html
+# age https://github.com/FiloSottile/age
+# rage https://github.com/str4d/rage
 # https://github.com/SixArm/gpg-encrypt
 # https://github.com/SixArm/gpg-decrypt
 # https://github.com/SixArm/openssl-encrypt
@@ -48,7 +49,9 @@ UMASK_READONLY="0377"     # created files (will be r--)
 # SHA_HASH_ITERATIONS: -iter 100,000,000 roughly 1 min on basic average 2020 CPU, tested
 # SHA_HASH_ITERATIONS: -iter 1,000,000,000 roughly 10 min on basic average 2020 CPU, tested
 # to calculate time run: openssl speed sha512   .... and look at the 256 block size
-SHA_HASH_ITERATIONS_RECOMMENDED=100000000            # 100M
+# We don't use a round number like 100000000 just in case there is or
+# will be a rainbow table for round numbers of hahes like 100000000.
+SHA_HASH_ITERATIONS_RECOMMENDED=100000017            # 100M
 SHA_HASH_ITERATIONS=$SHA_HASH_ITERATIONS_RECOMMENDED # 100M
 # SHA_HASH_ITERATIONS=100000                         # 100K # for testing only
 HASHING_TIME_IN_SEC=$(expr $SHA_HASH_ITERATIONS / 1666666) # estimate for moderate CPU in 2020
@@ -62,7 +65,7 @@ PASSPHRASE_FILE_CHACHA_OPTION="-pass file:$PASSPHRASE_FILE_CHACHA_FILE"
 
 # usage: outputs to stdout the --help usage message.
 usage() {
-  echo "${0##*/}: Version: v2020-09-30"
+  echo "${0##*/}: Version: v2020-11-02"
   echo "${0##*/}: Usage: ${0##*/} [--help] [--encrypt|--decrypt] files"
   echo "${0##*/}: e.g. ${0##*/} file1.txt file2.jpg # encrypt 2 files"
   echo "${0##*/}: e.g. ${0##*/} # read from stdin, encrypt text from stdin input"
@@ -81,11 +84,11 @@ usage() {
   echo "${0##*/}: If no file is provided as command line argument, script will read "
   echo "${0##*/}: plain-text from std input."
   echo "${0##*/}: "
-  echo "${0##*/}: If a file named \"passphrase-file-chacha20\" exists in the local"
+  echo "${0##*/}: If a file named \"$PASSPHRASE_FILE_CHACHA_FILE\" exists in the local"
   echo "${0##*/}: directory, then it will be used as passphrase source instead of stdin"
   echo "${0##*/}: for the Chacha20-round (first round) of encryption."
   echo "${0##*/}: "
-  echo "${0##*/}: If a file named \"passphrase-file-aes\" exists in the local"
+  echo "${0##*/}: If a file named \"$PASSPHRASE_FILE_AES_FILE\" exists in the local"
   echo "${0##*/}: directory, then it will be used as passphrase source instead of stdin"
   echo "${0##*/}: for the AES-round (second round) of encryption."
   echo "${0##*/}: "
@@ -97,9 +100,10 @@ usage() {
   echo "${0##*/}: Decrypt does the opposite. It recovers the plaintext from the ciphertext."
   echo "${0##*/}: TLDR: The whole decryption script in a nutshell does the 3 lines of code from above in the reverse order but with -d instead of -e."
   echo ""
-  echo ""
-  echo "Typical encryption process looks similar to this: "
-  cat << END
+  if [ "$DEBUG" == "true" ]; then
+    echo ""
+    echo "Typical encryption process looks similar to this: "
+    cat << END
 $ ./${0##*/}
 ${0##*/}: Install latest version of "openssl", "shred" and "qrencode"!
 ${0##*/}: It will NOT overwrite files. So, if you run it twice it will give error.
@@ -127,6 +131,7 @@ ${0##*/}: QR codes are in files "ciphertext.png" and "ciphertext.svg"
 ${0##*/}: Meta data is in file "ciphertext.inf"
 ${0##*/}: SUCCESS! Look at ciphertext output in file "ciphertext.enc".
 END
+  fi
 } # usage()
 
 # takes 1 optional argument, the return value, the exit value
@@ -155,11 +160,13 @@ read-passphrase-files-if-availble() {
   if [ -f "$PASSPHRASE_FILE_CHACHA_FILE" ]; then
     echo "${0##*/}: Info: Found file \"$PASSPHRASE_FILE_CHACHA_FILE\". It will be used as source for the Chacha20 passphrase. You will not be asked for a passphrase for Chacha20 $1."
   else
+    echo "${0##*/}: Info: File \"$PASSPHRASE_FILE_CHACHA_FILE\" not found. It cannot be used as source for the Chacha20 passphrase. You will be asked for a passphrase for Chacha20 $1."
     PASSPHRASE_FILE_CHACHA_OPTION="" # don't use this option
   fi
   if [ -f "$PASSPHRASE_FILE_AES_FILE" ]; then
     echo "${0##*/}: Info: Found file \"$PASSPHRASE_FILE_AES_FILE\". It will be used as source for the AES passphrase. You will not be asked for a passphrase for AES $1."
   else
+    echo "${0##*/}: Info: File \"$PASSPHRASE_FILE_AES_FILE\" not found. It cannot be used as source for the AES passphrase. You will be asked for a passphrase for AES $1."
     PASSPHRASE_FILE_AES_OPTION="" # don't use this option
   fi
 }
@@ -419,12 +426,12 @@ esac
 case "$1" in
 --help | --hel | --he | --h | -help | -hel | -he | -h)
   usage
-  cleanup_exit 0
-  ;; # success
+  exit 0 # no cleanup needed
+  ;;     # success
 --version | --versio | --versi | --vers | --ver | --ve | --v | -version | -versio | -versi | -vers | -ver | -ve | -v)
   usage
-  cleanup_exit 0
-  ;; # success
+  exit 0 # no cleanup needed
+  ;;     # success
 esac
 
 # give some guidance, summary
@@ -478,4 +485,14 @@ for i in "$@"; do
   fi
 done
 
+# This code is just useful if script is kicked off via GUI such as file manager
+# Not needed when used in terminal.
+#if [ "${FILESLASHSLASHUSED}" -eq "1" ]; then
+#  echo "${0##*/}: Done. Close window please by clicking X in top right window corner."
+#else
+#  echo -n "${0##*/}: Hit any key to continue ... "
+#fi
+#read YESNO
+
 cleanup_exit 0 # success
+# EOF
